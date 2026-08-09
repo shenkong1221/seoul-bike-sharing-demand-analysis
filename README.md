@@ -73,6 +73,7 @@ The best model — full variables with polynomial terms on rainfall, humidity, d
 - Peak demand is a **multiplicative, multi-condition phenomenon** (summer × afternoon commute), not explained by any single feature.
 - Non-linear terms (polynomials) and pairwise interactions meaningfully improved predictive accuracy without causing overfitting; regularisation did not.
 - The final model's main weakness is **underestimating peak demand**, suggesting future work should focus on better capturing high-demand extremes (e.g., via non-linear models like random forests, or explicit peak-hour interaction terms).
+- Data Visualisation **Tableau Public URL:** https://public.tableau.com/app/profile/rubykong/viz/SeoulBike-sharingDemandAnalysis/Dashboard1
 
 ## Tech Stack
 
