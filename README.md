@@ -34,7 +34,7 @@ Combined **SQL queries (via `RSQLite`, `dbGetQuery()`)** with `ggplot2` visualiz
 - Winter demand is **low and stable** (smallest standard deviation); summer demand is **high and volatile** (largest standard deviation and highest peaks).
 - Rainfall correlates with demand but is not the dominant barrier — summer has both the highest rainfall total and the highest demand. **Snowfall is the stronger barrier**: heavy snowfall days coincide with sharply reduced usage, though the small sample (27 snow days/year) limits statistical confidence.
 - A time-series scatter plot of demand vs. date confirms the seasonal pattern: low/stable demand in Jan–Mar, peak and highly dispersed demand in May–Aug, and elevated-but-declining demand in Sep–Nov.
-- Coloring the same plot by hour of day reveals that daily demand rhythm (low overnight, peak 10am–7pm) **doesn't shift across seasons** — the annual peak is the product of summer *and* afternoon hours occurring together, not either factor alone.
+- Colouring the same plot by hour of day reveals that daily demand rhythm (low overnight, peak 10am–7pm) **doesn't shift across seasons** — the annual peak is the product of summer *and* afternoon hours occurring together, not either factor alone.
 - The distribution of `RENTED_BIKE_COUNT` is **right-skewed** (a floor effect at zero compresses the left tail): typical hourly demand sits around 200–300 rentals, with high-demand hours (summer afternoons) forming a thin, long tail.
 - Faceting temperature vs. demand by season (colored by hour) shows demand concentrates in the 20–30°C range and falls off outside it — but the *same* temperature produces very different demand depending on season and hour (e.g., 0–5°C appears in both spring and winter, but winter demand stays low regardless). This reveals that **temperature and season are highly collinear** (each season maps to a narrow temperature band), and that **hour of day is a stronger driver than temperature alone** — peak demand requires summer *and* the evening commute window (5–7pm) simultaneously.
 - Seasonal boxplots of hour vs. demand show consistent evening peaks (5–7pm) across all four seasons, likely commute-driven, along with season-specific outlier patterns (e.g., unusually low daytime values in fall, possibly linked to holiday travel).
@@ -42,15 +42,15 @@ Combined **SQL queries (via `RSQLite`, `dbGetQuery()`)** with `ggplot2` visualiz
 **EDA conclusion:** The relationship between temperature and demand is positive but non-linear; hour of day is a strong independent driver; peak demand results from multiple conditions overlapping rather than any single variable; and temperature/season exhibit multicollinearity that must be accounted for in modeling.
 
 ### 4. Predictive Modeling
-Built and iteratively refined a series of linear regression models using `tidymodels`, evaluating each on a held-out test set (80/20 split, `set.seed(1)` for reproducibility).
+Built and iteratively refined a series of linear regression models using `tidymodels`, evaluating each on a train/test set (80/20 split, `set.seed(1)` for reproducibility).
 
-**Step 1 — Baseline models.** Compared a weather-only model against a full-variable model (weather + date/time). The full-variable model performed meaningfully better, confirming that date/time variables add real predictive value. Coefficient inspection (valid for direct comparison since all predictors are normalized to the same scale) identified `RAINFALL`, `HUMIDITY`, `DEW_POINT_TEMPERATURE`, and `TEMPERATURE` as the most influential predictors. (Note: `SOLAR_RADIATION` showed a counter-intuitive negative coefficient — a multicollinearity artifact, since `TEMPERATURE` absorbs most of solar radiation's explanatory power, not evidence that sunnier weather reduces demand.)
+**Step 1 — Baseline models.** Compared a weather-only model against a full-variable model (weather + date/time). The full-variable model performed meaningfully better, confirming that date/time variables add real predictive value. Coefficient inspection (valid for direct comparison since all predictors are normalized to the same scale) identified `RAINFALL`, `HUMIDITY`, `DEW_POINT_TEMPERATURE`, and `TEMPERATURE` as the most influential predictors. (Note: `SOLAR_RADIATION` showed a counter-intuitive negative coefficient — a **multicollinearity artifact**, since `TEMPERATURE` absorbs most of solar radiation's explanatory power, not evidence that sunnier weather reduces demand.)
 
 **Step 2 — Polynomial terms.** Added higher-order polynomial terms for the four most important variables to capture non-linear relationships, selecting the polynomial degree per variable (up to degree 6) based on the largest simultaneous RMSE decrease and R² increase on test data, while visually checking for overfitting (widening confidence bands at higher orders).
 
-**Step 3 — Interaction terms.** Added pairwise interactions (`RAINFALL:HUMIDITY`, `HUMIDITY:TEMPERATURE`, `TEMPERATURE:RAINFALL`) to capture secondary effects between weather variables, improving both R² and RMSE further without overfitting.
+**Step 3 — Interaction terms.** Added pairwise interaction terms (`RAINFALL:HUMIDITY`, `HUMIDITY:TEMPERATURE`, `TEMPERATURE:RAINFALL`) to capture secondary effects between weather variables, improving both R² and RMSE further without causing overfitting.
 
-**Step 4 — Regularization.** Attempted to control the growing model complexity by switching to a `glmnet` engine with penalty/mixture hyperparameters tuned via 5-fold cross-validation and grid search. This step **reduced test performance** rather than improving it — a useful negative result showing that more advanced techniques don't always outperform a well-specified linear model.
+**Step 4 — Regularisation.** Attempted to control the growing model complexity by switching to a `glmnet` engine with penalty/mixture hyper-parameters tuned via 5-fold cross-validation and grid search. This step **reduced test performance** rather than improving it — a useful negative result showing that **more advanced techniques don't always outperform a well-specified linear model**.
 
 **Model comparison:**
 
@@ -62,16 +62,16 @@ Built and iteratively refined a series of linear regression models using `tidymo
 | **+ Polynomial terms (Best Model)** | **0.745** | **329** |
 | + Regularization (glmnet) | 0.693 | 380 |
 
-The best model — full variables with polynomial terms on rainfall, humidity, dew point temperature, and temperature, plus pairwise interaction terms — **explains 74.5% of the variance in hourly demand and cuts RMSE by ~33% relative to the weather-only baseline (493 → 329)**.
+The best model — full variables with polynomial terms on rainfall, humidity, dew point temperature, and temperature, plus interaction terms — **explains 74.5% of the variance in bike-sharing demand and cuts RMSE by 33.3% relative to the weather-only baseline (493 → 329)**.
 
-**Residual diagnostics.** A Q-Q plot comparing the best model's predictions against actual test-set values shows near-perfect alignment in the low-demand tail, slight overestimation in the mid-demand range, and a **systematic underestimation of peak (high-demand) hours** — indicating the model struggles most with the extreme summer-afternoon-commute demand spikes identified in the EDA.
+**Residual diagnostics.** A Q-Q plot comparing the best model's predictions against actual test-set values shows near-perfect alignment in the low-demand tail, slight overestimation in the mid-demand range, and a **systematic underestimation of high-demand region** — indicating the model struggles most with the extreme summer-afternoon-commute demand spikes identified in the EDA.
 
 ## Key Takeaways
 
 - **Hour of day is a stronger and more independent driver of demand than temperature.**
 - **Temperature and season are collinear**, not independent predictors — modeling decisions need to account for this rather than treating each as an isolated effect.
 - Peak demand is a **multiplicative, multi-condition phenomenon** (summer × afternoon commute), not explained by any single feature.
-- Non-linear terms (polynomials) and pairwise interactions meaningfully improved predictive accuracy without overfitting; regularization did not.
+- Non-linear terms (polynomials) and pairwise interactions meaningfully improved predictive accuracy without causing overfitting; regularisation did not.
 - The final model's main weakness is **underestimating peak demand**, suggesting future work should focus on better capturing high-demand extremes (e.g., via non-linear models like random forests, or explicit peak-hour interaction terms).
 
 ## Tech Stack
@@ -83,17 +83,7 @@ The best model — full variables with polynomial terms on rainfall, humidity, d
 - **Database querying:** `RSQLite`
 - **Visualization:** `ggplot2`
 
-## Repository Structure
-
-```
-├── Seoul_Bike-sharing_Demand_Analysis.R   # Full analysis: EDA + modeling pipeline
-├── data/                                   # Raw and cleaned datasets
-├── outputs/                                # Exported plots and result tables
-└── README.md
-```
-
 ## Future Work
 
 - Explore non-linear/ensemble models (e.g., random forest, gradient boosting) to better capture peak-demand extremes.
 - Incorporate explicit hour × season interaction terms, given the identified multiplicative effect.
-- Extend the snowfall-demand analysis with additional years of data to improve statistical confidence given the limited (27-day) sample.
